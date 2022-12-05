@@ -1,0 +1,219 @@
+---
+title: "DPA Project"
+author: "Sohaib Jawad"
+date: "2022-12-01"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(ggplot2)
+library(naniar)
+library(tidyverse)
+library(corrr)
+library(lubridate)
+library(psych)
+library(randomForest)
+library(e1071)
+library(class)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+```
+
+
+# Q. What features affect the popularity of a song on spotify?
+
+
+```{r}
+tracks_df = read.csv(file="spotify_data/tracks.csv")
+```
+
+
+```{r}
+boxplot(tracks_df$popularity, col = "blue", horizontal = T, main = "Popularity")
+```
+
+
+
+```{r}
+ggplot(tracks_df, aes(x=popularity)) + geom_histogram(binwidth=1)
+```
+
+
+```{r}
+head(sort(tracks_df$popularity,decreasing=TRUE),n=50)
+```
+
+
+```{r}
+# creating a new df that only has top 50 tracks based on popularity
+top_500_tracks = head(tracks_df[order(tracks_df$popularity, decreasing = TRUE),],500)
+```
+
+
+
+```{r}
+plot(top_500_tracks$energy, top_500_tracks$popularity, main="Energy vs Popularity",
+   xlab="Energy", ylab="Popularity", pch=19, col='blue')
+```
+
+Energy ranges from 0 to 1 and it shows the measure of intensity in the music. Usually you energetic songs feel loud and fast. Like metal music would have high energy and Bach prelude would have low. Looking at the scatter plot above, we can see that songs having energy level between 0.4 and 0.8 have higher chances of being comparatively popular. 
+
+```{r}
+plot(top_500_tracks$danceability, top_500_tracks$popularity, xlab="Dancibility", ylab="Popularity", main="Dancibility vs Popularity", pch=19, col="blue")
+```
+
+A song's danceability is determined by a number of musical factors, including tempo, rhythm stability, beat intensity, and overall regularity. The range from 0 to 1 represents the degree of danceability. Additionally, this scatter plot demonstrates that not all songs that are danceable are well-liked. Likewise, the most well-liked tracks on Spotify have a danceability rating between  0.5 and 0.85.
+
+
+```{r}
+plot(top_500_tracks$loudness, top_500_tracks$popularity, xlab="Loudness", ylab="Popularity", main="Loudness vs Popularity", pch=19, col='blue')
+```
+
+The overall loudness of a track in decibels (dB). Loudness values are averaged across the entire track and are useful for comparing the relative loudness of tracks. Loudness is the quality of a sound that is the primary psychological correlate of physical strength (amplitude). Values typically range between -25 and 0 db. Then the question arrived, which loudness is best for the song? The graph clearly shows that different loudnesses can make a song popular, but other factors must be considered, as some songs with the same loudness as popular songs are not popular.In addition, loudness around -12 to 0 is very common in the Top 500 songs on Spotify. However, loudness between -10 and -5 may result is better popularity of the song.
+
+
+```{r}
+plot(top_500_tracks$valence, top_500_tracks$popularity, xlab="Valence", ylab="Popularity", main="Valence vs Popularity", pch=19, col='blue')
+```
+
+A measure from 0 to 1 describes the musical positiveness conveyed by a track. This scatter plot shows us that the valence doesn’t have much effect on the popularity of the song. As you can see, almost all valences can become popular songs, even valence 0 can become popular.
+
+
+```{r}
+plot(top_500_tracks$acousticness, top_500_tracks$popularity, xlab="Acousticness", ylab="Popularity", main="Acousticness vs Popularity",pch=19, col='blue')
+```
+
+Does acousticness affect the popularity of the song? A confidence measure from 0 to 1 of whether the track is acoustic. 1 represents high confidence the track is acoustic. So, by looking at the graph, do you think having more acoustic or less acoustic is good? The answer is that having acousticness more than 0.6 is not a good idea, but between 0 and 0.6 is a good range of acousticness. But sometimes people also don’t like the acousticness around 1 to 0.3 which means acousticness also depends on the genre of the song.
+
+
+```{r}
+plot(top_500_tracks$speechiness, top_500_tracks$popularity, xlab="Speechiness", ylab="Popularity", main="Speechiness vs Popularity",pch=19, col='blue')
+```
+
+How does speechiness affect the popularity of the song? Speechiness detects the presence of spoken words in a track. Therefore, it is seen that the less spoken words there are, the more popular the song would be. Moreover, having a presence of spoken words makes your song less popular as people usually want to listen to the lyrics of the song, not the spoken words.
+
+
+
+
+```{r}
+colMeans(top_500_tracks[c("speechiness", "energy", "danceability", "loudness", "acousticness", "liveness", "tempo")])
+```
+
+
+In addition, I also found the average values for each audio feature: energy. danceability, loudness, valence, acousticness, speechness. These values could be used to help you create a song that has a higher chance of being featured in the Top 50 Spotify songs in the future.
+
+
+# Q. Predicting Song Popularity Combining Audio Features
+
+```{r}
+gg_miss_var(tracks_df)
+```
+
+```{r}
+subset_tracks = sample_n(tracks_df, 50000)
+summary.default(subset_tracks)
+```
+
+```{r}
+subset_tracks = subset_tracks[c("popularity", "speechiness", "energy", "danceability", "loudness", "acousticness", "liveness", "tempo", "valence", "instrumentalness")]
+```
+
+
+```{r}
+cor_mat = cor(subset_tracks)
+```
+
+```{r}
+cor_mat
+```
+
+
+```{r}
+subset_index = createDataPartition(subset_tracks$popularity, p=.70, list=FALSE)
+subset_track_train = subset_tracks[subset_index,]
+subset_track_test =  subset_tracks[-subset_index,]
+```
+
+
+# Linear regression
+
+```{r}
+lm_model = lm(popularity ~ speechiness + energy + danceability + loudness + acousticness + liveness + tempo + valence + instrumentalness, data=subset_track_train)
+summary(lm_model)
+```
+
+
+# Decision Tree
+
+```{r}
+dt_model = rpart(popularity ~ speechiness + energy + danceability + loudness + acousticness + liveness + tempo + valence + instrumentalness, data=subset_track_train, method = "anova")
+
+printcp(dt_model)
+```
+
+```{r}
+prp(dt_model, main = "Decision Tree Model")
+```
+
+```{r}
+predict_dt_val = predict(dt_model, subset_track_test)
+
+MSE_dt = sum((predict_dt_val - subset_track_test$popularity)^2)/nrow(subset_track_test)
+vary_dt = sum((subset_track_test$popularity - mean(subset_track_test$popularity))^2)/(nrow(subset_track_test)-1)
+Rsqr_dt = 1 - (MSE_dt/vary_dt)
+
+
+cat("Decision Tree MSE on Test Dataset : ",MSE_dt)
+cat("\nDecision Tree variance on Test Dataset  : ",vary_dt)
+cat("\nDecision Tree R-Square  on Test Dataset  : ",Rsqr_dt)
+```
+
+
+# Random Forest
+
+```{r}
+rf_model = randomForest(popularity ~ speechiness + energy + danceability + loudness + acousticness + liveness + tempo + valence + instrumentalness, data=subset_track_train)
+summary(rf_model)
+```
+
+
+```{r}
+predicted_val = predict(rf_model, subset_track_test)
+```
+
+```{r}
+plot(rf_model)
+```
+
+```{r}
+varImpPlot(rf_model)
+```
+
+```{r}
+MSE_rf = sum((predicted_val - subset_track_test$popularity)^2)/nrow(subset_track_test)
+vary_rf = sum((subset_track_test$popularity - mean(subset_track_test$popularity))^2)/(nrow(subset_track_test)-1)
+Rsqr_rf = 1 - (MSE_rf/vary_rf)
+
+cat("Random Forest MSE on Test Dataset : ",MSE_rf)
+cat("\nRandom Forest variance on Test Dataset  : ",vary_rf)
+cat("\nRandom Forest R-Square  on Test Dataset  : ",Rsqr_rf)
+```
+
+```{r}
+postResample(predicted_val, subset_track_test$popularity)
+```
+
+To conclude, the audio features are indeed not sufficient to explain the popularity of a track and metadata are essential. There are other factors that affect the popularity of the song and my assumption is that the biggest factor that influences the popularity of the song is the popularity of the artist too.
+
+
+
+
