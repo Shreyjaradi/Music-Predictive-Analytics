@@ -1,0 +1,139 @@
+---
+#title: "Spotify-Data-Analysis"
+#author: "Abdul Raqeeb"
+#date: "2022-11-20"
+#output:
+#pdf_document: default
+#html_document: default
+---
+------------------------------------------------------------------------------------------------------------
+#### Who are the top popular artists i.e., that has popularity more than 90 (from Dataset 1)
+------------------------------------------------------------------------------------------------------------
+library(caret)
+library(ggplot2)
+library(naniar)
+library(tidyverse)
+library(corrr)
+library(lubridate)
+library(psych)
+library(randomForest)
+library(e1071)
+library(class)
+library(caTools)
+library(car)
+library(dplyr)
+
+tracks_spotify_df = read.csv(file='tracks.csv', header=TRUE)
+
+head(tracks_spotify_df)
+
+dim(tracks_spotify_df)
+
+tracks_spotify_df = tracks_spotify_df[1:1104349,]
+
+summary.default(tracks_spotify_df)
+
+#Missing values
+gg_miss_var(tracks_spotify_df)
+
+#Checking for Missing Values
+tracks_spotify_df %>% summarise_all(~ sum(is.na(.)))
+
+#Check how the data is skewed
+boxplot(tracks_spotify_df$popularity, col = "Green", horizontal = T, main = "Popularity")
+#It can be seen in the box plot that most of the data lies between 0 to 15. That means that most of the artists did not get famous, 
+#only a few artists got famous
+
+#Filter the dataset
+tracks_spotify_df_filtered <- tracks_spotify_df[,c('name','popularity')]
+head(tracks_spotify_df_filtered)
+
+#Checking for artists that has popularity over 80
+top_popular_artists<-tracks_spotify_df_filtered[which(tracks_spotify_df_filtered[,2]>=90),]
+top_popular_artists
+##Data shows that there are 51 artists that has a popularity of more than 89
+
+#Validate that we do not have any duplicate artists in our analysis
+unique(top_popular_artists$name)
+##It can be seen that there are 51 artists, which is the same as the above analysis. Therefore artists are unique. 
+
+
+# ------------------------------------------------------------------------------------------------------------
+#### Predict danceability of a song belong to based on specific features (from Data set 2)
+#------------------------------------------------------------------------------------------------------------
+
+
+genres_spotify_df = read.csv(file='genres_v2.csv')
+
+head(genres_spotify_df)
+
+dim(genres_spotify_df)
+
+genres_spotify_df = genres_spotify_df[1:42305,]
+
+summary.default(genres_spotify_df)
+
+#Checking for Missing Values
+
+gg_miss_var(genres_spotify_df)
+
+genres_spotify_df %>% summarise_all(~ sum(is.na(.)))
+#It can be seen that we do not have any missing data except for "Unnamed: 0" column. This column has over 20,000 missing data, 
+#therefore we will exclude this column in our analysis
+
+#checking correlation between different features
+corr_mat = correlate(genres_spotify_df[,c("danceability","energy","key", "loudness" , "mode", "speechiness", "acousticness" ,"instrumentalness", "liveness" , "valence" ,"tempo")])
+corr_mat
+
+corr_mat %>%focus(danceability) %>% mutate(term = reorder(term, danceability)) %>% ggplot(aes(term,danceability )) + geom_col() + coord_flip() + theme_bw()
+
+#It can be seen that key, instrumentalness, acousticness and mode are close to zero. Therefore, we can remove them from our analysis 
+
+#Finding any outliers
+boxplot((genres_spotify_df$danceability), col = "green", horizontal = T, main = "Genre")
+
+#Splitting the data into train and test dataset
+
+genres_spotify_df_filter = genres_spotify_df[,c("danceability", "energy", "loudness", "mode", "speechiness", "liveness" , "valence" ,"tempo")]
+
+genres_spotify_filter_index = createDataPartition(genres_spotify_df_filter$danceability, p=.70, list=FALSE)
+genres_spotify_filter_train = genres_spotify_df_filter[genres_spotify_filter_index,]
+genres_spotify_filter_test =  genres_spotify_df_filter[-genres_spotify_filter_index,]
+
+
+##applying Multiple Linear Regression model
+lm_model = lm(danceability ~  energy+loudness+mode+speechiness+liveness+valence+tempo ,data= genres_spotify_filter_train)
+summary(lm_model)
+#plot(lm_model)
+
+#applying MLR with scaling loudness
+lm_model_scaled = lm(danceability ~  energy+scale(loudness,center=TRUE)+mode+speechiness+liveness+valence+tempo ,data= genres_spotify_filter_train)
+summary(lm_model_scaled)
+#Since the R-squared value did not change, we will have to try a different model. 
+
+#applying logistic regression
+glm_model = glm(danceability ~  energy+loudness+mode+speechiness+liveness+valence+tempo ,data= genres_spotify_filter_train, family = binomial(link='logit'))
+summary(glm_model)
+pscl::pR2(glm_model)["McFadden"]
+caret::varImp(glm_model)
+vif(glm_model)
+
+#applying Random Forest model
+rf_model = randomForest(danceability ~  energy+loudness+mode+speechiness+liveness+valence+tempo ,data= genres_spotify_filter_train)
+summary(rf_model)
+plot(rf_model)
+
+predicted_val = predict(rf_model,genres_spotify_filter_test[,-1])
+postResample(predicted_val, genres_spotify_filter_test$danceability)
+varImpPlot(rf_model)
+#It can be seen that the Rsquared value for the Random Forest model is approximately 0.6. This shows that the we can use this model.
+
+
+
+
+
+
+
+
+
+  
